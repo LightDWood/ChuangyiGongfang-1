@@ -3,7 +3,7 @@ from typing import Optional, AsyncIterator
 
 class LLMClient:
     def __init__(self):
-        self.api_key = os.getenv("LLM_API_KEY", "apikey-69b8f5c1e4b0c281b94a4c49")
+        self.api_key = os.getenv("LLM_API_KEY", "")
         self.model = os.getenv("LLM_MODEL", "Qwen3.5-35B-A3B")
         self.base_url = os.getenv("LLM_BASE_URL", "https://modelapi-test.haier.net/model/v1")
 

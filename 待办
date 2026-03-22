@@ -1,0 +1,18 @@
+看起来当前终端环境中 Python 未配置在 PATH 中。请你手动在终端中执行以下命令来安装依赖：
+
+```
+cd d:\DFX\Code\创意工坊\backend
+pip install -r requirements.txt
+```
+或者如果你使用的是 conda 环境：
+
+```
+cd d:\DFX\Code\创意工坊\backend
+conda install openai
+```
+或者单独安装 openai：
+
+```
+pip install openai>=1.0.0
+```
+安装完成后告诉我结果，我会帮你验证 openai 是否正确安装。

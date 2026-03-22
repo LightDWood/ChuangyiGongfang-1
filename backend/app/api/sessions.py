@@ -210,11 +210,31 @@ async def send_message(
 
     user_id = current_user.id
     agent = LeadAgent(db)
-    agent_response_content = ""
+    agent_response_parts = []
+    pending_artifacts = []
+    error_occurred = False
 
     try:
         async for chunk in agent.process_user_input(message.content, session_id, current_user.id):
-            if chunk.get("type") == "document_generated":
+            chunk_type = chunk.get("type")
+            chunk_content = chunk.get("content", "")
+
+            if chunk_type == "token":
+                agent_response_parts.append(chunk_content)
+            elif chunk_type == "requirement_identified":
+                agent_response_parts.append(f"我理解了您的 {len(chunk.get('requirements', []))} 个需求")
+            elif chunk_type == "ambiguity_detected":
+                points = chunk.get("points", [])
+                if points:
+                    agent_response_parts.append(f"发现以下需要澄清的点: {', '.join(points)}")
+            elif chunk_type == "questions_ready":
+                questions_count = len(chunk.get("questions", []))
+                agent_response_parts.append(f"我准备了 {questions_count} 个问题来帮助澄清需求")
+            elif chunk_type == "options_ready":
+                agent_response_parts.append("选项已生成，请选择或跳过")
+            elif chunk_type == "awaiting_selection":
+                agent_response_parts.append(chunk_content)
+            elif chunk_type == "document_generated":
                 artifact_data = chunk.get("document")
                 if artifact_data:
                     artifact = Artifact(
@@ -227,7 +247,14 @@ async def send_message(
                     )
                     db.add(artifact)
                     await db.commit()
+                    agent_response_parts.append(f"需求规格说明书已生成: {artifact_data.get('title', '')}")
+            elif chunk_type == "completed":
+                agent_response_parts.append(chunk_content)
+            elif chunk_type in ("thinking", "checkpoint", "refinement_needed", "selection_processed", "quality_warning"):
+                if chunk_content:
+                    agent_response_parts.append(chunk_content)
     except Exception as e:
+        error_occurred = True
         print(f"Agent processing error: {e}")
         import traceback
         traceback.print_exc()
@@ -242,11 +269,12 @@ async def send_message(
         session.title = message.content[:50] + ("..." if len(message.content) > 50 else "")
         await db.commit()
 
+    final_response = " ".join(agent_response_parts) if agent_response_parts else "处理完成"
     agent_message = Message(
         id=str(uuid.uuid4()),
         session_id=session_id,
         role="agent",
-        content="处理完成",
+        content=final_response,
     )
     db.add(agent_message)
     await db.commit()

@@ -3,7 +3,7 @@ import { useSessionStore, useAuthStore } from '../stores';
 import MainLayout from '../components/layout/MainLayout';
 
 export default function ChatPage() {
-  const { fetchSessions, currentSession } = useSessionStore();
+  const { fetchSessions } = useSessionStore();
   const { isAuthenticated, checkAuth } = useAuthStore();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

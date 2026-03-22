@@ -325,23 +325,43 @@ class LeadAgent:
         self, user_input: str, context: ConversationContext
     ) -> Dict[str, Any]:
         agent = self.sub_agents["requirement_understanding"]
-        return await agent.execute(user_input, {"session_id": context.session_id})
+        result = await agent.execute({
+            "user_input": user_input,
+            "session_id": context.session_id,
+        })
+
+        requirement_summary = result.get("requirement_summary", {})
+        understood_requirements = requirement_summary.get("core_functions", [])
+
+        if not understood_requirements and requirement_summary.get("project_overview"):
+            understood_requirements = [requirement_summary.get("project_overview")]
+
+        return {
+            "understood_requirements": understood_requirements,
+            "ambiguity_points": result.get("ambiguous_points", []),
+            "confidence": result.get("confidence", 0.0),
+            "needs_clarification": result.get("needs_clarification", False),
+        }
 
     async def plan_questions(
         self, requirements: List[str], context: ConversationContext
     ) -> Dict[str, Any]:
         agent = self.sub_agents["question_design"]
-        return await agent.execute(
-            requirements, {"session_id": context.session_id, "requirements": requirements}
-        )
+        result = await agent.execute({
+            "project_overview": context.user_input,
+            "core_functions": requirements,
+            "target_users": "未知",
+            "expected_outcomes": [],
+            "ambiguous_points": context.ambiguity_points,
+            "session_id": context.session_id,
+        })
+        return result
 
     async def generate_options(
         self, questions: List[Dict[str, Any]], context: ConversationContext
     ) -> Dict[str, Any]:
         agent = self.sub_agents["option_generation"]
-        return await agent.execute(
-            questions, {"session_id": context.session_id, "questions": questions}
-        )
+        return await agent.execute(questions)
 
     async def _process_response(
         self, selections: Dict[str, Any], context: ConversationContext

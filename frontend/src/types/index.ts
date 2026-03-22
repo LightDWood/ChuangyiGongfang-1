@@ -50,7 +50,16 @@ export interface AuthState {
 }
 
 export interface StreamChunk {
-  type: 'token' | 'artifact' | 'error';
+  type: 'token' | 'artifact' | 'error' | 'thinking' | 'requirement_identified'
+        | 'ambiguity_detected' | 'checkpoint' | 'questions_ready' | 'options_ready'
+        | 'awaiting_selection' | 'refinement_needed' | 'selection_processed'
+        | 'completed' | 'quality_warning' | 'document_generated';
   content: string;
   artifact?: Artifact;
+  requirements?: string[];
+  points?: string[];
+  questions?: any[];
+  options?: Record<string, any[]>;
+  step?: number;
+  document?: Artifact;
 }

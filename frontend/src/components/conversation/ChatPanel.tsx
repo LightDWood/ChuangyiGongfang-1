@@ -6,6 +6,7 @@ import ChatInput from './ChatInput';
 
 interface StreamingMessage {
   id: string;
+  session_id: string;
   role: 'assistant';
   content: string;
   artifacts: never[];
@@ -64,29 +65,120 @@ export default function ChatPanel() {
         created_at: new Date().toISOString(),
       };
 
-      eventSource.onmessage = (event) => {
-        try {
-          const data: StreamChunk = JSON.parse(event.data);
+      const handleToken = (data: StreamChunk) => {
+        setStreamingContent((prev) => prev + data.content);
+      };
 
-          if (data.type === 'token') {
-            setStreamingContent((prev) => prev + data.content);
-          } else if (data.type === 'artifact' && data.artifact) {
-            const artifactMessage: Message = {
-              id: `artifact-${Date.now()}`,
-              session_id: currentSession.id,
-              role: 'assistant',
-              content: `生成了产物: ${data.artifact.title}`,
-              artifacts: [data.artifact],
-              created_at: new Date().toISOString(),
-            };
-            addMessage(artifactMessage);
-          } else if (data.type === 'error') {
-            console.error('Stream error:', data.content);
-          }
-        } catch (parseError) {
-          console.error('Failed to parse SSE data:', parseError);
+      const handleArtifact = (data: StreamChunk) => {
+        if (data.artifact) {
+          const artifactMessage: Message = {
+            id: `artifact-${Date.now()}`,
+            session_id: currentSession.id,
+            role: 'assistant',
+            content: `生成了产物: ${data.artifact.title}`,
+            artifacts: [data.artifact],
+            created_at: new Date().toISOString(),
+          };
+          addMessage(artifactMessage);
         }
       };
+
+      const handleThinking = (data: StreamChunk) => {
+        if (data.content) {
+          setStreamingContent((prev) => prev + data.content + '\n');
+        }
+      };
+
+      const handleAmbiguity = (data: StreamChunk) => {
+        if (data.points) {
+          setStreamingContent((prev) => prev + `发现歧义点: ${data.points!.join(', ')}\n`);
+        }
+      };
+
+      const handleDone = () => {
+        eventSource.close();
+        eventSourceRef.current = null;
+        if (streamingContent) {
+          const finalMessage: Message = {
+            id: assistantMessageId,
+            session_id: currentSession.id,
+            role: 'assistant',
+            content: streamingContent,
+            artifacts: [],
+            created_at: assistantMessage.created_at,
+          };
+          addMessage(finalMessage);
+          setStreamingContent('');
+        }
+        setStreaming(false);
+      };
+
+      eventSource.addEventListener('token', (event) => {
+        try {
+          const data: StreamChunk = JSON.parse((event as MessageEvent).data);
+          handleToken(data);
+        } catch (parseError) {
+          console.error('Failed to parse token data:', parseError);
+        }
+      });
+
+      eventSource.addEventListener('artifact', (event) => {
+        try {
+          const data: StreamChunk = JSON.parse((event as MessageEvent).data);
+          handleArtifact(data);
+        } catch (parseError) {
+          console.error('Failed to parse artifact data:', parseError);
+        }
+      });
+
+      eventSource.addEventListener('thinking', (event) => {
+        try {
+          const data: StreamChunk = JSON.parse((event as MessageEvent).data);
+          handleThinking(data);
+        } catch (parseError) {
+          console.error('Failed to parse thinking data:', parseError);
+        }
+      });
+
+      eventSource.addEventListener('requirement_identified', (event) => {
+        try {
+          const data: StreamChunk = JSON.parse((event as MessageEvent).data);
+          handleThinking(data);
+        } catch (parseError) {
+          console.error('Failed to parse requirement_identified data:', parseError);
+        }
+      });
+
+      eventSource.addEventListener('questions_ready', (event) => {
+        try {
+          const data: StreamChunk = JSON.parse((event as MessageEvent).data);
+          handleThinking(data);
+        } catch (parseError) {
+          console.error('Failed to parse questions_ready data:', parseError);
+        }
+      });
+
+      eventSource.addEventListener('options_ready', (event) => {
+        try {
+          const data: StreamChunk = JSON.parse((event as MessageEvent).data);
+          handleThinking(data);
+        } catch (parseError) {
+          console.error('Failed to parse options_ready data:', parseError);
+        }
+      });
+
+      eventSource.addEventListener('ambiguity_detected', (event) => {
+        try {
+          const data: StreamChunk = JSON.parse((event as MessageEvent).data);
+          handleAmbiguity(data);
+        } catch (parseError) {
+          console.error('Failed to parse ambiguity_detected data:', parseError);
+        }
+      });
+
+      eventSource.addEventListener('done', () => {
+        handleDone();
+      });
 
       eventSource.onerror = () => {
         eventSource.close();
@@ -105,24 +197,6 @@ export default function ChatPanel() {
           setStreamingContent('');
         }
       };
-
-      eventSource.addEventListener('done', () => {
-        eventSource.close();
-        eventSourceRef.current = null;
-        if (streamingContent) {
-          const finalMessage: Message = {
-            id: assistantMessageId,
-            session_id: currentSession.id,
-            role: 'assistant',
-            content: streamingContent,
-            artifacts: [],
-            created_at: assistantMessage.created_at,
-          };
-          addMessage(finalMessage);
-          setStreamingContent('');
-        }
-        setStreaming(false);
-      });
     } catch (error) {
       console.error('Failed to send message:', error);
       setStreaming(false);
